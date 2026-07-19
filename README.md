@@ -11,7 +11,10 @@ Repository Architecture (Mono-Repo Layout)
 This repository is organized as a unified monorepo containing our isolated microservices, validation suites and analytics reporting tools:
 
 |-- data-plane-gateway/      # Node.js / Express.js telemetry and scaling service
-|-- control-plane-brain/     # Python / FastAPI / Scikit-Learn predictive inference engine        
+
+|-- control-plane-brain/     # Python / FastAPI / Scikit-Learn predictive inference engine 
+
 |-- testing-validation/      # PyTest and Jest automated metamorphic stress test suites
+
 |-- analytics-dashboard/     # R / RStudio post-deployment statistical dashboards
 
