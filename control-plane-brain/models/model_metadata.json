@@ -1,0 +1,46 @@
+{
+  "model_name": "RandomForest",
+  "forecast_duration_minutes": 15,
+  "test_r2": 0.3322,
+  "test_mae_rps": 50.58,
+  "all_model_comparison": {
+    "LinearRegression": {
+      "r2": -0.0437,
+      "mae": 69.86
+    },
+    "RandomForest": {
+      "r2": 0.3322,
+      "mae": 50.58
+    },
+    "GradientBoosting": {
+      "r2": 0.3116,
+      "mae": 52.47
+    }
+  },
+  "feature_importance": {
+    "requests_per_second": 0.6688,
+    "lag_3": 0.0694,
+    "rolling_mean_6": 0.0597,
+    "lag_1": 0.0501,
+    "lag_6": 0.0497,
+    "rolling_std_6": 0.0423,
+    "rolling_mean_12": 0.0309,
+    "hour_of_day": 0.0203,
+    "day_of_week": 0.0073,
+    "is_weekend": 0.0016
+  },
+  "features": [
+    "hour_of_day",
+    "day_of_week",
+    "is_weekend",
+    "requests_per_second",
+    "lag_1",
+    "lag_3",
+    "lag_6",
+    "rolling_mean_6",
+    "rolling_mean_12",
+    "rolling_std_6"
+  ],
+  "trained_rows": 6900,
+  "test_rows": 1725
+}
