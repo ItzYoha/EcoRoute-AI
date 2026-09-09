@@ -97,7 +97,7 @@ joblib.dump(FEATURES, "models/model_features.joblib")
 def compute_confidence(model, X_data, fallback_mae, y_range):
     if hasattr(model, "estimators_") and hasattr(model.estimators_[0], "predict"):
         try:
-            tree_preds = np.array([est.predict(X_data) for est in model.estimators_])
+            tree_preds = np.array([est.predict(X_data.values) for est in model.estimators_])
             std = tree_preds.std(axis=0)
             confidence = 100 * (1 - np.clip(std / (y_range + 1e-6), 0, 1))
             return confidence
