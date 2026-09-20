@@ -1,4 +1,3 @@
-
 import {
   overview,
   predictionData,
@@ -44,12 +43,25 @@ export async function getLiveMetrics() {
   };
 }
 
+
+const PREDICTION_API_URL = "http://localhost:5000";
+
+export async function getPrediction() {
+  const response = await fetch(`${PREDICTION_API_URL}/predict`);
+
+  if (!response.ok) {
+    throw new Error(`Prediction API failed: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+
 export const dashboardApi = {
   getLiveMetrics,
 
-  // Keep these mock sections for now.
   getOverview: () => Promise.resolve(overview),
-  getPrediction: () => Promise.resolve(predictionData),
+  getPrediction,
   getInstances: () => Promise.resolve(instances),
   getTelemetry: () => Promise.resolve(telemetry),
 };

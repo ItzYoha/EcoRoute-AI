@@ -3,10 +3,8 @@ import json
 import time
 import csv
 import os
-from datetime import datetime, timezone
 
 import redis
-import time
 
 # Connect to Redis
 r = redis.Redis(
@@ -15,7 +13,7 @@ r = redis.Redis(
     decode_responses=True
 )
 
-OUTPUT_FILE = "data/gold/live_rps.csv"
+OUTPUT_FILE = "data/gold/live_rps_with_intervals.csv"
 
 
 def collect_latest_metrics():
@@ -30,7 +28,13 @@ def collect_latest_metrics():
         writer = csv.writer(file)
 
         if not file_exists:
-            writer.writerow(["timestamp", "rps"])
+            writer.writerow([
+                "timestamp",
+                "rps",
+                "interval_start",
+                "interval_end",
+                "duration_seconds"
+            ])
 
         for metric in metrics:
             data = json.loads(metric)
@@ -46,8 +50,12 @@ def collect_latest_metrics():
             if is_new:
                 writer.writerow([
                     timestamp,
-                    data["rps"]
+                    data["rps"],
+                    data.get("interval_start", ""),
+                    data.get("interval_end", ""),
+                    data.get("duration_seconds", "")
                 ])
+
                 collected += 1
 
     print("New records collected:", collected)

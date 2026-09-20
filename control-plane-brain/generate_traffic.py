@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-
+from pathlib import Path
 np.random.seed(42)
 
 # ---------------- CONFIG ----------------
@@ -85,7 +85,25 @@ df = pd.DataFrame({
 })
 
 df.to_csv("traffic_simulation.csv", index=False)
+# ---------------- SAVE DATASET ----------------
+OUTPUT_PATH = (
+    Path(__file__).resolve().parent
+    / "data"
+    / "raw"
+    / "traffic_simulation.csv"
+)
+
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+df.to_csv(OUTPUT_PATH, index=False)
+
+print("Dataset saved to:", OUTPUT_PATH)
 print("Shape:", df.shape)
-print("\nSpike rows:", df['is_spike'].sum())
-print("\nRequired instances range:", df['required_instances'].min(), "-", df['required_instances'].max())
+print("\nSpike rows:", df["is_spike"].sum())
+print(
+    "\nRequired instances range:",
+    df["required_instances"].min(),
+    "-",
+    df["required_instances"].max()
+)
 print("\n", df.head(10))

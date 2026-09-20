@@ -44,11 +44,14 @@ export default function App() {
 
         if (!active) return;
 
+
         setData({
           overview: {
             ...overview,
             currentRps: live.currentRps,
             avgResponseTime: live.avgResponseTime,
+            predictedRps: prediction.predicted_rps,
+            predictionConfidence: prediction.confidence_proxy,
           },
           traffic: live.traffic,
           response: live.response,
@@ -56,6 +59,8 @@ export default function App() {
           instances,
           telemetry,
         });
+
+        setUpdated("just now");
 
         setUpdated("just now");
       } catch (error) {

@@ -14,6 +14,8 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 import joblib
 import json
+from pathlib import Path
+import os
 
 # ---------------- CONFIG ----------------
 FREQ_MINUTES = 5
@@ -24,12 +26,19 @@ TRAIN_FRACTION = 0.8                # time-based split, no shuffling
 # ---------------- LOAD ----------------
 # Expects to be run from inside control-plane-brain/, with the dataset already placed
 # at data/raw/original_dataset.csv per the repo's locked folder structure.
-import os
-os.makedirs("data/gold", exist_ok=True)
-os.makedirs("models", exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+GOLD_DIR = BASE_DIR / "data" / "gold"
+MODEL_DIR = BASE_DIR / "models"
 
-df = pd.read_csv("data/raw/original_dataset.csv", parse_dates=["timestamp"])
+GOLD_DIR.mkdir(parents=True, exist_ok=True)
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+DATA_PATH = BASE_DIR / "data" / "raw" / "traffic_simulation.csv"
+
+df = pd.read_csv(DATA_PATH, parse_dates=["timestamp"])
 df = df.sort_values("timestamp").reset_index(drop=True)
+
+print("Training dataset:", DATA_PATH)
 
 # ---------------- FEATURE ENGINEERING (leakage-free) ----------------
 # Only use information available AT the time of prediction (time t) to forecast t + horizon.
@@ -88,8 +97,8 @@ best_model = results[best_name]["model"]
 print(f"\nSelected model: {best_name} (R2={results[best_name]['r2']:.4f})")
 
 # ---------------- SAVE MODEL ----------------
-joblib.dump(best_model, "models/forecasting_model.joblib")
-joblib.dump(FEATURES, "models/model_features.joblib")
+joblib.dump(best_model, MODEL_DIR / "forecasting_model.joblib")
+joblib.dump(FEATURES, MODEL_DIR / "model_features.joblib")
 
 # ---------------- CONFIDENCE ESTIMATION ----------------
 # For RandomForest: use spread across individual trees as an uncertainty proxy.
@@ -122,7 +131,10 @@ predictions_export = pd.DataFrame({
     "Prediction_Status": "SUCCESS",
     "Actual_Is_Spike": meta_test["target_is_spike"].astype(int),
 })
-predictions_export.to_csv("data/gold/predictions_export.csv", index=False)
+predictions_export.to_csv(
+    GOLD_DIR / "predictions_export.csv",
+    index=False
+)
 
 # ---------------- FEATURE IMPORTANCE ----------------
 if hasattr(best_model, "feature_importances_"):
@@ -143,7 +155,7 @@ metadata = {
     "trained_rows": len(X_train),
     "test_rows": len(X_test),
 }
-with open("models/model_metadata.json", "w") as f:
+with open(MODEL_DIR / "model_metadata.json", "w") as f:
     json.dump(metadata, f, indent=2)
 
 print("\nSaved: models/forecasting_model.joblib, data/gold/predictions_export.csv, models/model_metadata.json")

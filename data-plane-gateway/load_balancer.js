@@ -21,10 +21,53 @@ const servers = [
 ];
 
 let currentServer = 0;
-let requestCount = 0;
 
 const RPS_WINDOW = 5 * 60 * 1000;
+let requestCount = 0;
 let windowStart = Date.now();
+
+
+async function saveRpsMeasurement() {
+    const now = Date.now();
+    const elapsedSeconds = (now - windowStart) / 1000;
+
+    if (elapsedSeconds <= 0) return;
+
+    const intervalStart = new Date(windowStart).toISOString();
+    const intervalEnd = new Date(now).toISOString();
+
+    const rps = requestCount / elapsedSeconds;
+
+    const measurement = {
+        rps: Number(rps.toFixed(2)),
+        timestamp: intervalEnd,
+        interval_start: intervalStart,
+        interval_end: intervalEnd,
+        duration_seconds: Number(elapsedSeconds.toFixed(2))
+    };
+
+    console.log("RPS timer fired:", measurement);
+
+    try {
+        await redisClient.lPush(
+            "rps_metrics",
+            JSON.stringify(measurement)
+        );
+
+        console.log("Saved RPS:", measurement);
+    } catch (error) {
+        console.error("Could not save RPS:", error);
+    }
+
+    requestCount = 0;
+    windowStart = now;
+}
+
+redisClient.on("ready", () => {
+    console.log("Starting 5-minute RPS timer");
+
+    setInterval(saveRpsMeasurement, RPS_WINDOW);
+});
 
 
 /* Dashboard API routes */
@@ -92,30 +135,7 @@ app.get("/api/metrics", async (req, res) => {
 });
 
 app.use(async (req, res) => {
-
     requestCount++;
-
-    const currentTime = Date.now();
-
-    if (currentTime - windowStart >= RPS_WINDOW) {
-
-        const elapsedSeconds = (currentTime - windowStart) / 1000;
-
-        const rps = requestCount / elapsedSeconds;
-
-        console.log("RPS:", rps.toFixed(2));
-
-        await redisClient.lPush(
-            "rps_metrics",
-            JSON.stringify({
-                rps: Number(rps.toFixed(2)),
-                timestamp: new Date().toISOString()
-            })
-        );
-
-        requestCount = 0;
-        windowStart = currentTime;
-    }
 
     console.log("Request count:", requestCount);
 
