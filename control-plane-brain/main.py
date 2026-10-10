@@ -11,6 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
 LIVE_DATA = BASE_DIR / "data" / "gold" / "live_rps_with_intervals.csv"
+print("API CSV PATH:", LIVE_DATA.resolve())
+print("CSV EXISTS:", LIVE_DATA.exists())
+
 
 FORECAST_MINUTES = 15
 INTERVAL_MINUTES = 5
@@ -101,24 +104,42 @@ def predict():
 
     # 3. Check that the latest observations match
     #    the model's expected 5-minute interval.
-    recent = df.tail(MIN_HISTORY).copy()
-    gaps = recent["timestamp"].diff().dropna().dt.total_seconds()
-
     expected_seconds = INTERVAL_MINUTES * 60
+
+    df = df.reset_index(drop=True)
+    gaps = df["timestamp"].diff().dt.total_seconds()
+
     valid_intervals = (
         (gaps - expected_seconds).abs()
         <= TIMESTAMP_TOLERANCE_SECONDS
     )
 
-    if not valid_intervals.all():
+    # Start a new sequence whenever there is a gap
+    df["sequence"] = (~valid_intervals).cumsum()
+
+    # Get the most recent continuous sequence
+    latest_sequence = df["sequence"].iloc[-1]
+    recent = df[df["sequence"] == latest_sequence].copy()
+
+    print("API CSV PATH:", LIVE_DATA.resolve())
+    print("TOTAL VALID ROWS:", len(df))
+    print("LATEST TIMESTAMPS:")
+    print(df[["timestamp", "rps", "sequence"]].tail(20).to_string(index=False))
+    print("LATEST SEQUENCE SIZE:", len(recent))
+    
+
+    if len(recent) < MIN_HISTORY:
         raise HTTPException(
             status_code=422,
             detail=(
-                "Latest samples are not regularly spaced "
-                "at 5-minute intervals. Collect regularly "
-                "spaced data before forecasting."
+                f"Need {MIN_HISTORY} consecutive samples "
+                f"spaced 5 minutes apart. "
+                f"Latest continuous sequence has {len(recent)}."
             ),
         )
+
+    # Use the latest 13 samples from that sequence
+    recent = recent.tail(MIN_HISTORY).reset_index(drop=True)
 
     # 4. Construct features from regularly spaced data
     recent = recent.reset_index(drop=True)
