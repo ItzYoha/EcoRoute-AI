@@ -14,8 +14,10 @@ redisClient.connect()
     });
 
 const PORT = 8000;
+// Active backend registry
+const BACKEND_REGISTRY_KEY = "active_backends";
 
-const servers = [
+let servers = [
     "http://localhost:5001",
     "http://localhost:5002"
 ];
@@ -91,6 +93,46 @@ app.get("/api/health", (req, res) => {
         status: "ok",
         service: "EcoRoute AI Load Balancer"
     });
+});
+
+// Update active backends (called by the control plane)
+app.use(express.json());
+app.put("/api/backends", async (req, res) => {
+    const { servers: newServers } = req.body;
+
+    if (
+        !Array.isArray(newServers) ||
+        newServers.length === 0 ||
+        !newServers.every(
+            (server) =>
+                typeof server === "string" &&
+                /^https?:\/\/.+/.test(server)
+        )
+    ) {
+        return res.status(400).json({
+            error: "Provide a non-empty array of backend URLs."
+        });
+    }
+
+    servers = [...newServers];
+    currentServer = currentServer % servers.length;
+
+    try {
+        await redisClient.set(
+            BACKEND_REGISTRY_KEY,
+            JSON.stringify(servers)
+        );
+
+        res.json({
+            status: "updated",
+            activeBackends: servers
+        });
+    } catch (error) {
+        console.error("Backend registry update failed:", error);
+        res.status(500).json({
+            error: "Could not save backend registry."
+        });
+    }
 });
 
 // Metrics endpoint
