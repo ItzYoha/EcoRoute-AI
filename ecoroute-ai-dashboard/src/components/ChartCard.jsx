@@ -18,9 +18,57 @@ export function ResponseChart({ data }) {
 }
 
 export function PredictionChart({ data }) {
-  return <ResponsiveContainer width="100%" height="100%"><LineChart data={data} margin={{ top: 10, right: 12, left: -18, bottom: 0 }}>
-    <CartesianGrid stroke="#202b40" strokeDasharray="3 3" vertical={false}/><XAxis dataKey="time" stroke="#6d7c95" tickLine={false} axisLine={false} fontSize={11}/><YAxis stroke="#6d7c95" tickLine={false} axisLine={false} fontSize={11}/><Tooltip contentStyle={tooltipStyle}/>
-    <Line type="monotone" dataKey="actual" stroke="#67d8a4" strokeWidth={2.5} dot={false} name="Actual RPS"/>
-    <Line type="monotone" dataKey="predicted" stroke="#ffb454" strokeWidth={2.5} strokeDasharray="6 5" dot={false} name="Predicted RPS"/>
-  </LineChart></ResponsiveContainer>
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart
+        data={data}
+        margin={{ top: 10, right: 12, left: -18, bottom: 0 }}
+      >
+        <CartesianGrid
+          stroke="#202b40"
+          strokeDasharray="3 3"
+          vertical={false}
+        />
+
+        <XAxis
+          dataKey="time"
+          stroke="#6d7c95"
+          tickLine={false}
+          axisLine={false}
+          fontSize={11}
+        />
+
+        <YAxis
+          stroke="#6d7c95"
+          tickLine={false}
+          axisLine={false}
+          fontSize={11}
+          domain={[0, "auto"]}
+        />
+
+        <Tooltip contentStyle={tooltipStyle} />
+
+        <Line
+          type="linear"
+          dataKey="actual"
+          stroke="#67d8a4"
+          strokeWidth={2.5}
+          dot={{ r: 4 }}
+          connectNulls={false}
+          name="Actual RPS"
+        />
+
+        <Line
+          type="linear"
+          dataKey="predicted"
+          stroke="#ffb454"
+          strokeWidth={2.5}
+          strokeDasharray="6 5"
+          dot={{ r: 4 }}
+          connectNulls={false}
+          name="Predicted RPS"
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
 }

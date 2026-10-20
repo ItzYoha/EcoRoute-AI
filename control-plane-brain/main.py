@@ -12,6 +12,7 @@ import urllib.error
 import json
 import asyncio
 import time
+from datetime import datetime, timezone
 
 # ---------------- CONFIG ----------------
 BASE_DIR = Path(__file__).resolve().parent
@@ -25,6 +26,11 @@ FORECAST_MINUTES = 15
 INTERVAL_MINUTES = 5
 MIN_HISTORY = 13
 TIMESTAMP_TOLERANCE_SECONDS = 30
+latest_autoscaling_status = {
+    "predicted_rps": None,
+    "desired_instances": None,
+    "last_checked": None,
+}
 
 # ---------------- AUTOSCALING CONFIG ----------------
 CAPACITY_PER_INSTANCE = 250
@@ -367,6 +373,42 @@ def reconcile_instances(prediction):
         ]
     }
 
+@app.get("/instances")
+def get_instances_status():
+    try:
+        running = get_backend_instances()
+
+        instances = []
+
+        for number, container in running:
+            host_port = get_host_port(container)
+
+            instances.append({
+                "id": container.name,
+                "number": number,
+                "host_port": host_port,
+                "status": container.status,
+            })
+
+        return {
+            "active_instances": len(instances),
+            "desired_instances": latest_autoscaling_status[
+                "desired_instances"
+            ],
+            "predicted_rps": latest_autoscaling_status[
+                "predicted_rps"
+            ],
+            "last_checked": latest_autoscaling_status[
+                "last_checked"
+            ],
+            "instances": instances,
+        }
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not retrieve instance status: {error}",
+        )
 
 # ---------------- SCHEDULED AUTOSCALING ----------------
 
@@ -403,6 +445,11 @@ async def autoscaling_loop():
                 MIN_INSTANCES,
                 min(required_instances, MAX_INSTANCES)
             )
+            latest_autoscaling_status.update({
+                "predicted_rps": round(float(predicted_rps), 2),
+                "desired_instances": desired,
+                "last_checked": datetime.now(timezone.utc).isoformat(),
+            })
             running = await asyncio.to_thread(get_backend_instances)
             active = len(running)
             print(

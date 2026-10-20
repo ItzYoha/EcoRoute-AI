@@ -1,14 +1,10 @@
-import {
-  overview,
-  predictionData,
-  instances,
-  telemetry,
-} from "../data/mockData";
 
-const API_URL = "http://localhost:8000/api";
+const GATEWAY_URL = "http://localhost:8000/api";
+const CONTROL_PLANE_URL = "http://localhost:5000";
 
+// Fetch live RPS and response-time metrics from Redis via the gateway.
 export async function getLiveMetrics() {
-  const response = await fetch(`${API_URL}/metrics`);
+  const response = await fetch(`${GATEWAY_URL}/metrics`);
 
   if (!response.ok) {
     throw new Error(`Metrics API failed: ${response.status}`);
@@ -27,41 +23,49 @@ export async function getLiveMetrics() {
     currentRps: metrics.currentRps ?? 0,
     avgResponseTime: metrics.avgResponseTime ?? 0,
 
-    traffic: [...metrics.rpsHistory]
+    traffic: (metrics.rpsHistory ?? [])
+      .slice()
       .reverse()
       .map((item) => ({
         time: formatTime(item.timestamp),
         rps: item.rps,
       })),
 
-    response: [...metrics.responseHistory]
-      .reverse()
-      .map((item) => ({
-        time: formatTime(item.timestamp),
-        latency: item.responseTime,
-      })),
+    response: (metrics.responseHistory ?? []).map((item) => ({
+                time: formatTime(item.timestamp),
+                timestamp: item.timestamp,
+                server: item.server,
+                responseTime: Number(item.responseTime ?? 0),
+                latency: Number(item.responseTime ?? 0),
+              })),
   };
 }
 
-
-const PREDICTION_API_URL = "http://localhost:5000";
-
+// Fetch the latest ML prediction.
 export async function getPrediction() {
-  const response = await fetch(`${PREDICTION_API_URL}/predict`);
+  const response = await fetch(`${CONTROL_PLANE_URL}/predict`);
 
   if (!response.ok) {
     throw new Error(`Prediction API failed: ${response.status}`);
   }
 
-  return await response.json();
+  return response.json();
 }
 
+// Fetch the actual running Docker instances and autoscaling status.
+export async function getInstances() {
+  const response = await fetch(`${CONTROL_PLANE_URL}/instances`);
 
+  if (!response.ok) {
+    throw new Error(`Instances API failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// Keep these mock-backed sections until their live APIs are implemented.
 export const dashboardApi = {
   getLiveMetrics,
-
-  getOverview: () => Promise.resolve(overview),
   getPrediction,
-  getInstances: () => Promise.resolve(instances),
-  getTelemetry: () => Promise.resolve(telemetry),
+  getInstances,
 };
