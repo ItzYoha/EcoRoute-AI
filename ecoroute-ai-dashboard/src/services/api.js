@@ -63,9 +63,56 @@ export async function getInstances() {
   return response.json();
 }
 
+// Start a bounded traffic simulation.
+export async function startTrafficSimulation({ targetRps, durationSeconds }) {
+  const response = await fetch(`${CONTROL_PLANE_URL}/demo/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_rps: targetRps, duration_seconds: durationSeconds }),
+  })
+
+  const result = await response.json()
+
+  if (!response.ok) {
+    throw new Error(result.detail ?? `Could not start simulation: ${response.status}`)
+  }
+
+  return result
+}
+
+// Read actual simulation progress.
+export async function getTrafficSimulationStatus() {
+  const response = await fetch(`${CONTROL_PLANE_URL}/demo/status`)
+
+  if (!response.ok) {
+    throw new Error(`Simulation status failed: ${response.status}`)
+  }
+
+  return response.json()
+}
+
+// Stop the current simulation.
+export async function stopTrafficSimulation() {
+  const response = await fetch(`${CONTROL_PLANE_URL}/demo/stop`, {
+    method: 'POST',
+  })
+
+  const result = await response.json()
+
+  if (!response.ok) {
+    throw new Error(result.detail ?? `Could not stop simulation: ${response.status}`)
+  }
+
+  return result
+}
+
 // Keep these mock-backed sections until their live APIs are implemented.
 export const dashboardApi = {
   getLiveMetrics,
   getPrediction,
   getInstances,
-};
+  startTrafficSimulation,
+  getTrafficSimulationStatus,
+  stopTrafficSimulation,
+}
+

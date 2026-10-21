@@ -5,6 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 import re
 import urllib.request
@@ -66,6 +67,160 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------- DEMO TRAFFIC SIMULATOR ----------------
+
+class DemoStartRequest(BaseModel):
+    target_rps: int = Field(ge=1, le=100)
+    duration_seconds: int = Field(ge=5, le=3600)
+
+
+demo_status = {
+    "running": False,
+    "target_rps": 0,
+    "duration_seconds": 0,
+    "total_requests": 0,
+    "successful_requests": 0,
+    "failed_requests": 0,
+    "actual_rps": 0.0,
+    "started_at": None,
+    "error": None,
+}
+
+_demo_task = None
+_demo_stop_event = None
+_demo_started_monotonic = None
+
+
+def send_demo_request():
+    """Send one real request through the Node.js load balancer."""
+    request = urllib.request.Request(
+        f"{LOAD_BALANCER_URL}/",
+        method="GET",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return 200 <= response.status < 400
+    except Exception:
+        return False
+
+
+async def run_demo_traffic(target_rps: int, duration_seconds: int):
+    global _demo_started_monotonic
+
+    loop = asyncio.get_running_loop()
+    _demo_started_monotonic = time.monotonic()
+    end_time = loop.time() + duration_seconds
+    in_flight = set()
+
+    async def tracked_request():
+        succeeded = await asyncio.to_thread(send_demo_request)
+
+        demo_status["total_requests"] += 1
+
+        if succeeded:
+            demo_status["successful_requests"] += 1
+        else:
+            demo_status["failed_requests"] += 1
+
+    try:
+        next_request_time = loop.time()
+
+        while loop.time() < end_time and not _demo_stop_event.is_set():
+            task = asyncio.create_task(tracked_request())
+            in_flight.add(task)
+            task.add_done_callback(in_flight.discard)
+
+            next_request_time += 1 / target_rps
+            delay = next_request_time - loop.time()
+
+            if delay > 0:
+                try:
+                    await asyncio.wait_for(
+                        _demo_stop_event.wait(),
+                        timeout=delay,
+                    )
+                except asyncio.TimeoutError:
+                    pass
+
+        if in_flight:
+            await asyncio.gather(*list(in_flight), return_exceptions=True)
+
+    except asyncio.CancelledError:
+        raise
+
+    except Exception as error:
+        demo_status["error"] = str(error)
+
+    finally:
+        elapsed = max(
+            time.monotonic() - _demo_started_monotonic,
+            0.001,
+        )
+
+        demo_status["actual_rps"] = round(
+            demo_status["total_requests"] / elapsed,
+            2,
+        )
+        demo_status["running"] = False
+
+
+@app.post("/demo/start")
+async def start_demo(request: DemoStartRequest):
+    global _demo_task, _demo_stop_event
+
+    if _demo_task is not None and not _demo_task.done():
+        raise HTTPException(
+            status_code=409,
+            detail="A traffic simulation is already running.",
+        )
+
+    demo_status.update({
+        "running": True,
+        "target_rps": request.target_rps,
+        "duration_seconds": request.duration_seconds,
+        "total_requests": 0,
+        "successful_requests": 0,
+        "failed_requests": 0,
+        "actual_rps": 0.0,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "error": None,
+    })
+
+    _demo_stop_event = asyncio.Event()
+
+    _demo_task = asyncio.create_task(
+        run_demo_traffic(
+            request.target_rps,
+            request.duration_seconds,
+        )
+    )
+
+    return {"message": "Traffic simulation started.", **demo_status}
+
+
+@app.get("/demo/status")
+def get_demo_status():
+    result = dict(demo_status)
+
+    if demo_status["running"] and _demo_started_monotonic is not None:
+        elapsed = max(time.monotonic() - _demo_started_monotonic, 0.001)
+        result["actual_rps"] = round(
+            demo_status["total_requests"] / elapsed,
+            2,
+        )
+
+    return result
+
+
+@app.post("/demo/stop")
+async def stop_demo():
+    if _demo_stop_event is not None and demo_status["running"]:
+        _demo_stop_event.set()
+        return {"message": "Stop requested.", **demo_status}
+
+    return {"message": "No simulation is running.", **demo_status}
 
 
 @app.get("/health")

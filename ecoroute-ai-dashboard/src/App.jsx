@@ -15,6 +15,7 @@ import {
   telemetry as mockTelemetry,
 } from './data/mockData'
 import { CheckCircle2, Circle } from 'lucide-react'
+import TrafficSimulator from './components/TrafficSimulator'
 
 export default function App() {
   const [active, setActive] = useState('Overview')
@@ -220,6 +221,13 @@ export default function App() {
             </div>
           </section>
 
+          <section
+              id="traffic-simulator"
+              style={{ marginBottom: 28, scrollMarginTop: 24 }}
+            >
+              <TrafficSimulator />
+          </section>
+          
           <LiveTraffic
             traffic={traffic}
             response={response}
