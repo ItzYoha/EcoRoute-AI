@@ -64,20 +64,35 @@ export async function getInstances() {
 }
 
 // Start a bounded traffic simulation.
-export async function startTrafficSimulation({ targetRps, durationSeconds }) {
-  const response = await fetch(`${CONTROL_PLANE_URL}/demo/start`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target_rps: targetRps, duration_seconds: durationSeconds }),
-  })
+export async function startTrafficSimulation({
+  targetRps,
+  durationSeconds,
+  pattern = "steady",
+}) {
+  const response = await fetch(
+    `${CONTROL_PLANE_URL}/demo/start`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target_rps: Number(targetRps),
+        duration_seconds: Number(durationSeconds),
+        pattern,
+      }),
+    }
+  );
 
-  const result = await response.json()
+  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(result.detail ?? `Could not start simulation: ${response.status}`)
+    throw new Error(
+      data.detail || "Failed to start traffic simulation"
+    );
   }
 
-  return result
+  return data;
 }
 
 // Read actual simulation progress.

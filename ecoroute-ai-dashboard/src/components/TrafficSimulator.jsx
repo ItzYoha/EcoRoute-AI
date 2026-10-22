@@ -15,6 +15,7 @@ export default function TrafficSimulator() {
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [pattern, setPattern] = useState("steady");
 
   async function refreshStatus() {
     try {
@@ -41,6 +42,7 @@ export default function TrafficSimulator() {
       await dashboardApi.startTrafficSimulation({
         targetRps: Number(targetRps),
         durationSeconds: Number(duration),
+        pattern,
       })
       await refreshStatus()
     } catch (err) {
@@ -101,14 +103,36 @@ export default function TrafficSimulator() {
             <input
               type="number"
               min="1"
-              max="100"
+              max="1000"
               value={targetRps}
               disabled={running || busy}
               onChange={(e) => setTargetRps(e.target.value)}
               style={{ display: 'block', width: '100%', marginTop: 8, padding: 10 }}
             />
-            <small>Allowed: 1–100 RPS</small>
+            <small>Allowed: 1–1000 RPS</small>
           </label>
+
+          <label>
+            Traffic Pattern
+            <select
+              value={pattern}
+              disabled={running || busy}
+              onChange={(e) => setPattern(e.target.value)}
+              style={{
+                display: 'block',
+                width: '100%',
+                marginTop: 8,
+                padding: 10,
+              }}
+            >
+              <option value="steady">Steady Load</option>
+              <option value="ramp_up">Gradual Ramp-Up</option>
+              <option value="spike">Sudden Spike</option>
+              <option value="ramp_up_down">Ramp-Up and Ramp-Down</option>
+              <option value="spike_drop">Spike Followed by Drop</option>
+            </select>
+          </label>
+
 
           <label>
             Duration in seconds
@@ -134,7 +158,7 @@ export default function TrafficSimulator() {
           <button
             onClick={startTest}
             disabled={running || busy || !Number.isInteger(Number(targetRps)) ||
-              Number(targetRps) < 1 || Number(targetRps) > 100 ||
+              Number(targetRps) < 1 || Number(targetRps) > 1000 ||
               !Number.isInteger(Number(duration)) ||
               Number(duration) < 5 || Number(duration) > 3600}
           >

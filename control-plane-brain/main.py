@@ -71,8 +71,12 @@ app.add_middleware(
 # ---------------- DEMO TRAFFIC SIMULATOR ----------------
 
 class DemoStartRequest(BaseModel):
-    target_rps: int = Field(ge=1, le=100)
+    target_rps: int = Field(ge=1, le=1000)
     duration_seconds: int = Field(ge=5, le=3600)
+    pattern: str = Field(
+        default="steady",
+        pattern="^(steady|ramp_up|spike|ramp_up_down|spike_drop)$"
+    )
 
 
 demo_status = {
@@ -92,6 +96,56 @@ _demo_stop_event = None
 _demo_started_monotonic = None
 
 
+MAX_IN_FLIGHT_REQUESTS = 250
+
+TRAFFIC_PATTERNS = {
+    "steady",
+    "ramp_up",
+    "spike",
+    "ramp_up_down",
+    "spike_drop",
+}
+
+
+def get_target_rps(pattern, peak_rps, elapsed, duration):
+    """
+    Calculate the intended request rate at the current elapsed time.
+    peak_rps is the maximum target rate selected by the user.
+    """
+    peak = float(peak_rps)
+    base = max(1.0, peak * 0.10)
+    progress = min(max(elapsed / max(duration, 1), 0.0), 1.0)
+
+    if pattern == "steady":
+        return peak
+
+    if pattern == "ramp_up":
+        return base + (peak - base) * progress
+
+    if pattern == "ramp_up_down":
+        if progress <= 0.5:
+            return base + (peak - base) * (progress * 2)
+        return peak - (peak - base) * ((progress - 0.5) * 2)
+
+    if pattern == "spike":
+        # Low baseline, with a brief spike around the middle.
+        spike_start = 0.45
+        spike_end = 0.65
+
+        if spike_start <= progress <= spike_end:
+            return peak
+        return base
+
+    if pattern == "spike_drop":
+        # Baseline, sharp spike, then a sustained drop.
+        if 0.30 <= progress < 0.45:
+            return peak
+        if progress >= 0.45:
+            return base
+        return base + (peak - base) * (progress / 0.30)
+
+    return peak
+
 def send_demo_request():
     """Send one real request through the Node.js load balancer."""
     request = urllib.request.Request(
@@ -106,13 +160,20 @@ def send_demo_request():
         return False
 
 
-async def run_demo_traffic(target_rps: int, duration_seconds: int):
+async def run_demo_traffic(
+    target_rps: int,
+    duration_seconds: int,
+    pattern: str = "steady",
+):
     global _demo_started_monotonic
 
     loop = asyncio.get_running_loop()
     _demo_started_monotonic = time.monotonic()
-    end_time = loop.time() + duration_seconds
+    start_time = loop.time()
+    end_time = start_time + duration_seconds
+
     in_flight = set()
+    next_request_time = loop.time()
 
     async def tracked_request():
         succeeded = await asyncio.to_thread(send_demo_request)
@@ -125,15 +186,40 @@ async def run_demo_traffic(target_rps: int, duration_seconds: int):
             demo_status["failed_requests"] += 1
 
     try:
-        next_request_time = loop.time()
-
         while loop.time() < end_time and not _demo_stop_event.is_set():
-            task = asyncio.create_task(tracked_request())
-            in_flight.add(task)
-            task.add_done_callback(in_flight.discard)
+            elapsed = loop.time() - start_time
 
-            next_request_time += 1 / target_rps
-            delay = next_request_time - loop.time()
+            current_target = get_target_rps(
+                pattern,
+                target_rps,
+                elapsed,
+                duration_seconds,
+            )
+
+            demo_status["current_target_rps"] = round(
+                current_target, 2
+            )
+
+            if len(in_flight) < MAX_IN_FLIGHT_REQUESTS:
+                task = asyncio.create_task(tracked_request())
+                in_flight.add(task)
+                task.add_done_callback(in_flight.discard)
+            else:
+                # Avoid creating an unbounded queue when the gateway
+                # cannot keep up with the selected target.
+                demo_status["skipped_requests"] += 1
+
+            next_request_time += 1.0 / current_target
+            now = loop.time()
+
+            # If behind schedule, don't send a catch-up burst.
+            if next_request_time < now:
+                next_request_time = now
+
+            delay = min(
+                next_request_time - loop.time(),
+                max(0, end_time - loop.time()),
+            )
 
             if delay > 0:
                 try:
@@ -145,7 +231,10 @@ async def run_demo_traffic(target_rps: int, duration_seconds: int):
                     pass
 
         if in_flight:
-            await asyncio.gather(*list(in_flight), return_exceptions=True)
+            await asyncio.gather(
+                *list(in_flight),
+                return_exceptions=True,
+            )
 
     except asyncio.CancelledError:
         raise
@@ -164,8 +253,7 @@ async def run_demo_traffic(target_rps: int, duration_seconds: int):
             2,
         )
         demo_status["running"] = False
-
-
+    
 @app.post("/demo/start")
 async def start_demo(request: DemoStartRequest):
     global _demo_task, _demo_stop_event
@@ -186,6 +274,12 @@ async def start_demo(request: DemoStartRequest):
         "actual_rps": 0.0,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "error": None,
+        "pattern": "steady",
+        "current_target_rps": 0.0,
+        "skipped_requests": 0,
+        "pattern": request.pattern,
+        "current_target_rps": float(request.target_rps),
+        "skipped_requests": 0,
     })
 
     _demo_stop_event = asyncio.Event()
@@ -194,6 +288,7 @@ async def start_demo(request: DemoStartRequest):
         run_demo_traffic(
             request.target_rps,
             request.duration_seconds,
+            request.pattern,
         )
     )
 
