@@ -14,17 +14,22 @@ redisClient.connect()
     });
 
 const PORT = 8000;
+// Active backend registry
+const BACKEND_REGISTRY_KEY = "active_backends";
 
-const servers = [
+let servers = [
     "http://localhost:5001",
     "http://localhost:5002"
 ];
 
 let currentServer = 0;
 
+// Five-minute RPS history for analytics and forecasting
 const RPS_WINDOW = 5 * 60 * 1000;
 let requestCount = 0;
 let windowStart = Date.now();
+const recentRequestTimestamps = [];
+
 
 
 async function saveRpsMeasurement() {
@@ -37,7 +42,7 @@ async function saveRpsMeasurement() {
     const intervalEnd = new Date(now).toISOString();
 
     const rps = requestCount / elapsedSeconds;
-
+    
     const measurement = {
         rps: Number(rps.toFixed(2)),
         timestamp: intervalEnd,
@@ -93,6 +98,46 @@ app.get("/api/health", (req, res) => {
     });
 });
 
+// Update active backends (called by the control plane)
+app.use(express.json());
+app.put("/api/backends", async (req, res) => {
+    const { servers: newServers } = req.body;
+
+    if (
+        !Array.isArray(newServers) ||
+        newServers.length === 0 ||
+        !newServers.every(
+            (server) =>
+                typeof server === "string" &&
+                /^https?:\/\/.+/.test(server)
+        )
+    ) {
+        return res.status(400).json({
+            error: "Provide a non-empty array of backend URLs."
+        });
+    }
+
+    servers = [...newServers];
+    currentServer = currentServer % servers.length;
+
+    try {
+        await redisClient.set(
+            BACKEND_REGISTRY_KEY,
+            JSON.stringify(servers)
+        );
+
+        res.json({
+            status: "updated",
+            activeBackends: servers
+        });
+    } catch (error) {
+        console.error("Backend registry update failed:", error);
+        res.status(500).json({
+            error: "Could not save backend registry."
+        });
+    }
+});
+
 // Metrics endpoint
 app.get("/api/metrics", async (req, res) => {
     try {
@@ -107,10 +152,21 @@ app.get("/api/metrics", async (req, res) => {
         const rpsData = rpsMetrics.map(JSON.parse);
         const responseData = responseMetrics.map(JSON.parse);
 
-        const latestRps = rpsData.length
-            ? rpsData[0].rps
-            : null;
+        // Calculate live RPS over the most recent 10 seconds
+        const now = Date.now();
+        const cutoff = now - 10_000;
 
+        while (
+            recentRequestTimestamps.length > 0 &&
+            recentRequestTimestamps[0] <= cutoff
+        ) {
+            recentRequestTimestamps.shift();
+        }
+
+        const latestRps = Number(
+            (recentRequestTimestamps.length / 10).toFixed(2)
+        );
+        
         const averageResponseTime = responseData.length
             ? responseData.reduce(
                 (sum, item) => sum + item.responseTime, 0
@@ -136,6 +192,9 @@ app.get("/api/metrics", async (req, res) => {
 
 app.use(async (req, res) => {
     requestCount++;
+
+    // Track requests for the live RPS calculation
+    recentRequestTimestamps.push(Date.now());
 
     console.log("Request count:", requestCount);
 

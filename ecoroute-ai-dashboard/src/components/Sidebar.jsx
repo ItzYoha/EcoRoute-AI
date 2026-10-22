@@ -1,8 +1,22 @@
-import { Activity, BarChart3, Gauge, Server, Settings2, Waves, Zap } from 'lucide-react'
+import {
+  Activity,
+  BarChart3,
+  Gauge,
+  Server,
+  Settings2,
+  Waves,
+  Zap,
+  FlaskConical,
+} from 'lucide-react'
 
 const items = [
-  ['Overview', Gauge], ['Live Traffic', Activity], ['Prediction', BarChart3],
-  ['Auto-Scaling', Zap], ['Instances', Server], ['Telemetry', Waves],
+  ['Overview', Gauge],
+  ['Live Traffic', Activity],
+  ['Prediction', BarChart3],
+  ['Auto-Scaling', Zap],
+  ['Instances', Server],
+  ['Telemetry', Waves],
+  ['Traffic Simulator', FlaskConical],
 ]
 
 export default function Sidebar({ active, onSelect }) {
