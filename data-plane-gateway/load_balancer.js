@@ -190,6 +190,8 @@ app.get("/api/metrics", async (req, res) => {
     }
 });
 
+//Default Round Robin:
+//Modify this function to call algorithms and select the appropriate algorithms 
 app.use(async (req, res) => {
     requestCount++;
 
