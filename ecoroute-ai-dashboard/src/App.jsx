@@ -9,7 +9,7 @@ import InstancesPanel from './components/InstancesPanel'
 import TelemetryTable from './components/TelemetryTable'
 import { dashboardApi } from './services/api'
 import { Activity, CheckCircle2, Circle } from 'lucide-react'
-
+import AlgorithmSelector from "./components/AlgorithmSelector";
 export default function App() {
   const [active, setActive] = useState('Overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -97,6 +97,7 @@ export default function App() {
       <Header onMenu={() => setSidebarOpen(true)} lastUpdated={updated} />
 
       <div className="content">
+      <AlgorithmSelector />
         <section id="overview" className="overview-section">
           <div className="system-status">
             <span>

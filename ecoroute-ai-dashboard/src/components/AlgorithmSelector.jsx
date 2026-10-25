@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./AlgorithmSelector.css";
 
 const algorithms = [
@@ -39,6 +39,26 @@ export default function AlgorithmSelector() {
   const [selected, setSelected] = useState("round_robin");
   const [status, setStatus] = useState("");
 
+  useEffect(() => {
+    async function loadSelectedAlgorithm() {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/algorithm"
+        );
+
+        if (!response.ok) {
+          throw new Error("Could not fetch algorithm");
+        }
+
+        const data = await response.json();
+        setSelected(data.algorithm);
+      } catch (error) {
+        console.error("Could not load selected algorithm:", error);
+      }
+    }
+
+    loadSelectedAlgorithm();
+  }, []);
   async function handleChange(event) {
     const algorithm = event.target.value;
     setSelected(algorithm);
@@ -80,9 +100,8 @@ export default function AlgorithmSelector() {
         {algorithms.map((algorithm) => (
           <label
             key={algorithm.id}
-            className={`algorithm-option ${
-              selected === algorithm.id ? "selected" : ""
-            }`}
+            className={`algorithm-option ${selected === algorithm.id ? "selected" : ""
+              }`}
           >
             <input
               type="radio"
