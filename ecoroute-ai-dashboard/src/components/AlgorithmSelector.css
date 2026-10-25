@@ -1,0 +1,88 @@
+
+.algorithm-card {
+  background: var(--card-bg, #ffffff);
+  color: var(--text-color, #1f2937);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 20px;
+}
+
+.algorithm-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.algorithm-heading h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.algorithm-heading p,
+.algorithm-option p {
+  color: var(--muted-color, #6b7280);
+  font-size: 13px;
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+
+.algorithm-badge {
+  background: #eaf2ff;
+  color: #2f80ed;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.algorithm-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.algorithm-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.algorithm-option:hover {
+  border-color: #2f80ed;
+}
+
+.algorithm-option.selected {
+  border-color: #2f80ed;
+  background: var(--selected-bg, #f0f6ff);
+}
+
+.algorithm-option input[type="radio"] {
+  accent-color: #2f80ed;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.algorithm-option strong {
+  font-size: 14px;
+}
+
+.algorithm-status {
+  min-height: 18px;
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--muted-color, #6b7280);
+}
+
+@media (max-width: 650px) {
+  .algorithm-options {
+    grid-template-columns: 1fr;
+  }
+}

@@ -14,8 +14,10 @@ import {
   instances as mockInstances,
   telemetry as mockTelemetry,
 } from './data/mockData'
-import { CheckCircle2, Circle } from 'lucide-react'
+
+import { Activity, CheckCircle2, Circle } from 'lucide-react'
 import TrafficSimulator from './components/TrafficSimulator'
+import AlgorithmSelector from './components/AlgorithmSelector'
 
 export default function App() {
   const [active, setActive] = useState('Overview')
@@ -169,6 +171,8 @@ export default function App() {
         <Header onMenu={() => setSidebarOpen(true)} lastUpdated={updated} />
 
         <div className="content">
+          <AlgorithmSelector />
+
           <section id="overview" className="overview-section">
             <div className="system-status">
               <span>
@@ -178,7 +182,6 @@ export default function App() {
                 <Circle size={7} fill="currentColor" /> Node.js · FastAPI · Redis
               </span>
             </div>
-
             <div className="metrics-grid">
               <MetricCard
                 type="rps"
