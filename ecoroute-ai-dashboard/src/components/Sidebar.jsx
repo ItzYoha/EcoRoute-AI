@@ -3,7 +3,7 @@ import {
   BarChart3,
   Gauge,
   Server,
-  Settings2,
+  SlidersHorizontal,
   Waves,
   Zap,
   FlaskConical,
@@ -11,6 +11,7 @@ import {
 
 const items = [
   ['Overview', Gauge],
+  ['Load Balancing Algorithm', SlidersHorizontal],
   ['Live Traffic', Activity],
   ['Prediction', BarChart3],
   ['Auto-Scaling', Zap],
@@ -26,7 +27,7 @@ export default function Sidebar({ active, onSelect }) {
         <div className="brand-mark"><Zap size={18} fill="currentColor" /></div>
         <div><strong>EcoRoute AI</strong><span>Infrastructure Control</span></div>
       </div>
-      <nav>
+      <nav className="sidebar-nav">
         <p className="nav-label">MONITORING</p>
         {items.map(([label, Icon]) => (
           <button key={label} className={`nav-item ${active === label ? 'active' : ''}`} onClick={() => onSelect(label)}>
@@ -36,7 +37,6 @@ export default function Sidebar({ active, onSelect }) {
       </nav>
       <div className="sidebar-bottom">
         <div className="system-mini"><span className="status-dot healthy" /> <div><b>System online</b><small>All services operational</small></div></div>
-        <button className="nav-item"><Settings2 size={18} /> <span>Settings</span></button>
       </div>
     </aside>
   )

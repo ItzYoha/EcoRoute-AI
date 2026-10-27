@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import "./AlgorithmSelector.css";
 
@@ -59,6 +58,7 @@ export default function AlgorithmSelector() {
 
     loadSelectedAlgorithm();
   }, []);
+
   async function handleChange(event) {
     const algorithm = event.target.value;
     setSelected(algorithm);
@@ -87,7 +87,7 @@ export default function AlgorithmSelector() {
   }
 
   return (
-    <section className="algorithm-card">
+    <section id="load-balancing-algorithm" className="algorithm-card">
       <div className="algorithm-heading">
         <div>
           <h2>Load Balancing Algorithm</h2>
@@ -100,8 +100,7 @@ export default function AlgorithmSelector() {
         {algorithms.map((algorithm) => (
           <label
             key={algorithm.id}
-            className={`algorithm-option ${selected === algorithm.id ? "selected" : ""
-              }`}
+            className={`algorithm-option ${selected === algorithm.id ? "selected" : ""}`}
           >
             <input
               type="radio"
@@ -119,9 +118,11 @@ export default function AlgorithmSelector() {
         ))}
       </div>
 
-      <p className="algorithm-status" aria-live="polite">
-        {status}
-      </p>
+      {status && (
+        <p className="algorithm-status" aria-live="polite">
+          {status}
+        </p>
+      )}
     </section>
   );
 }
