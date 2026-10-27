@@ -129,6 +129,9 @@ app.put("/api/algorithm", (req, res) => {
 
   try {
     const selected = setSelectedAlgorithm(algorithm);
+    if (selected === "least_response_time") {
+      leastResponseTime.reset();
+    }
 
     res.json({
       status: "updated",

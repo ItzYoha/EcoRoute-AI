@@ -7,6 +7,11 @@ function leastResponseTime(servers) {
     throw new Error("No active backend servers available");
   }
 
+  const unprobedServer = servers.find((server) => !(requestCounts[server] > 0));
+  if (unprobedServer) {
+    return unprobedServer;
+  }
+
   let selectedServer = servers[0];
   let minimumTime = Infinity;
 
@@ -39,6 +44,12 @@ function recordResponseTime(server, duration) {
     (requestCounts[server] || 0) + 1;
 }
 
+function reset() {
+  Object.keys(responseTimes).forEach((key) => delete responseTimes[key]);
+  Object.keys(requestCounts).forEach((key) => delete requestCounts[key]);
+}
+
 leastResponseTime.recordResponseTime = recordResponseTime;
+leastResponseTime.reset = reset;
 
 module.exports = leastResponseTime;
