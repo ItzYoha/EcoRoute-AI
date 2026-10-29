@@ -33,46 +33,49 @@ EcoRoute AI addresses this by:
 
 ---
 
+
 ## 4. System Architecture
 
 ```mermaid
 flowchart TB
-    Client["Client / Built-in Traffic Simulator<br/>(POST /demo/start)"] -->|HTTP Requests| LB["Data Plane Gateway<br/>Node.js + Express (Port 8000)"]
+    Client["Client / Traffic Simulator"] -->|"HTTP requests"| LB["Data Plane Gateway<br/>Node.js + Express<br/>Port 8000"]
 
-    subgraph DataPlane["Data Plane (data-plane-gateway)"]
-        LB --> Algo["Algorithm Selector<br/>(RR, WRR, LC, WLC, LRT, P2C)"]
-        Algo -->|Proxy HTTP| B1["Backend 1<br/>ecoroute-backend-1 (Port 5001)"]
-        Algo -->|Proxy HTTP| B2["Backend 2<br/>ecoroute-backend-2 (Port 5002)"]
-        Algo -.->|Scaled Out| BN["Backend 3..10<br/>ecoroute-backend-N (Ports 5003..5010)"]
+    subgraph DP["Data Plane"]
+        LB --> Algo["Load Balancing Algorithm"]
+        Algo --> B1["Backend 1<br/>Port 5001"]
+        Algo --> B2["Backend 2<br/>Port 5002"]
+        Algo --> BN["Additional Backends<br/>Ports 5003–5010"]
     end
 
-    LB -->|lPush rps_metrics (5m)<br/>lPush response_times (per req)| Redis[("Redis Store<br/>(Port 6379)")]
+    LB -->|"RPS and response-time telemetry"| Redis[("Redis<br/>Port 6379")]
 
-    subgraph ControlPlane["Control Plane (control-plane-brain)"]
-        Collector["collect_live_data.py<br/>(Polls Redis every 30s)"]
-        CSV[("live_rps_with_intervals.csv")]
-        FastAPI["FastAPI Brain + Autoscaler<br/>main.py (Port 5000)"]
-        Model["RandomForestRegressor<br/>forecasting_model.joblib"]
-        Bench["run_benchmark.py<br/>(6-Algorithm Evaluator)"]
+    subgraph CP["Control Plane"]
+        Collector["Live Data Collector<br/>collect_live_data.py"]
+        CSV[("Live RPS CSV")]
+        API["FastAPI Control Plane<br/>Port 5000"]
+        Model["Trained Random Forest"]
+        Scaling["Autoscaling Controller"]
     end
 
-    Redis -->|lrange rps_metrics| Collector
-    Collector -->|Append new 5m rows| CSV
-    CSV -->|Read latest 13 rows| FastAPI
-    Model --> FastAPI
-    FastAPI -->|Docker SDK: start/stop containers| BN
-    FastAPI -->|PUT /api/backends| LB
-    Bench -->|Control /demo & /api/algorithm<br/>Read response_times| Redis
+    Redis --> Collector
+    Collector --> CSV
+    CSV -->|"Recent traffic history"| API
+    Model --> API
+    API -->|"Forecasted RPS"| Scaling
+    Scaling -->|"Create / remove containers"| Docker["Docker Engine"]
+    Docker --> B1
+    Docker --> B2
+    Docker --> BN
+    Scaling -->|"Update active backends"| LB
 
-    subgraph Dashboards["Monitoring & Analytics"]
-        ReactUI["React + Vite Dashboard<br/>(Port 5173)"]
-        RShiny["R / Shiny Analytics App<br/>R-Analytics/app.R (Port 3838)"]
+    subgraph UI["Monitoring and Analytics"]
+        React["React + Vite Dashboard<br/>Port 5173"]
+        Shiny["R / Shiny Analytics<br/>Port 3838"]
     end
 
-    ReactUI <-->|GET/PUT :8000 & :5000| LB
-    ReactUI <--> FastAPI
-    CSV --> RShiny
-    Bench -->|benchmark_summary.csv<br/>benchmark_requests.csv| RShiny
+    React <--> LB
+    React <--> API
+    CSV --> Shiny
 ```
 
 ---
@@ -179,20 +182,65 @@ EcoRoute-AI/
 ---
 
 ## 9. How Predictive Autoscaling Works
-Configured in `control-plane-brain/main.py`:
-- `CAPACITY_PER_INSTANCE = 250` RPS
-- `TARGET_UTILIZATION = 0.75` (effective capacity per instance = $250 \times 0.75 = 187.5\text{ RPS}$)
-- `MIN_INSTANCES = 2`, `MAX_INSTANCES = 10`
-- **Sizing Formula**:
-  $$\text{required\_instances} = \left\lceil \frac{\text{predicted\_rps}}{250 \times 0.75} \right\rceil, \quad \text{desired\_instances} = \min(10, \max(2, \text{required\_instances}))$$
-- **Reconciliation Loop (`autoscaling_loop`)**:
-  - Runs every **60 seconds** (`AUTO_SCALE_INTERVAL_SECONDS = 60`).
-  - Enforces a **300-second cooldown** (`AUTO_SCALE_COOLDOWN_SECONDS = 300`) between capacity changes.
-  - Requires baseline containers `ecoroute-backend-1` (host port `5001`) and `ecoroute-backend-2` (host port `5002`) to be running.
-  - **Scale-Out**: Starts new detached containers `ecoroute-backend-<N>` from image `ecoroute-backend:latest` mapping container port `5001/tcp` to host port `5000 + N`, waits until `container.status == "running"`, and updates the gateway via `PUT http://localhost:8000/api/backends`.
-  - **Scale-In**: First updates the gateway via `PUT /api/backends` with only the retained instances (so no new requests are routed to terminating containers), then stops and removes excess containers in reverse numeric order.
 
----
+The autoscaling controller uses the predicted RPS to calculate the number of backend instances required to handle future traffic safely.
+
+### Configuration
+
+| Parameter | Value |
+|---|---:|
+| Capacity per instance | 250 RPS |
+| Target utilization | 75% |
+| Effective capacity per instance | 187.5 RPS |
+| Minimum instances | 2 |
+| Maximum instances | 10 |
+| Autoscaling evaluation interval | 60 seconds |
+| Scaling cooldown | 300 seconds |
+
+### Instance Sizing Formula
+
+First, calculate the effective capacity of one instance:
+
+`Effective Capacity = 250 × 0.75 = 187.5 RPS`
+
+Then calculate the required instance count:
+
+$$
+N_{\text{required}} =
+\left\lceil
+\frac{\text{Predicted RPS}}{187.5}
+\right\rceil
+$$
+
+Apply the minimum and maximum instance limits:
+
+$$
+N_{\text{desired}} =
+\min(10,\max(2,N_{\text{required}}))
+$$
+
+### Example
+
+Suppose the Random Forest predicts 750 RPS.
+
+$$
+N_{\text{required}} =
+\left\lceil\frac{750}{187.5}\right\rceil = 4
+$$
+
+The desired capacity is four instances, provided the configured limits and scaling safeguards allow the change.
+
+### Autoscaling Workflow
+
+1. The control plane evaluates the latest workload forecast.
+2. It calculates the desired number of instances.
+3. It compares the desired count with the currently running instances.
+4. It checks the scaling cooldown and instance limits.
+5. For scale-out, it starts additional Docker backend containers and registers their host ports with the load balancer.
+6. For scale-in, it removes excess backends from the routing registry before stopping and removing their containers.
+
+The controller evaluates scaling every 60 seconds and enforces a 300-second cooldown between capacity changes.
+
 
 ## 10. Purpose of the R/Shiny Analytics Dashboard
 Located at `R-Analytics/app.R`, the Shiny app provides three implementation-focused evaluation tabs:
