@@ -18,3 +18,32 @@
 // Note: The GET /api/algo and PUT /api/algo endpoints will use this registry.
 // The PUT /api/backends endpoint must continue updating the backend list
 // without resetting the selected algorithm.
+
+
+const algorithmFiles = {
+  round_robin: "./roundRobin",
+  weighted_round_robin: "./weightedRoundRobin",
+  least_connections: "./leastConnections",
+  weighted_least_connections: "./weightedLeastConnections",
+  least_response_time: "./leastResponseTime",
+  power_of_two: "./powerOfTwoChoices"
+};
+
+function getAlgorithm(algorithm) {
+  const file = algorithmFiles[algorithm];
+
+  if (!file) {
+    throw new Error(`Unsupported algorithm: ${algorithm}`);
+  }
+
+  return require(file);
+}
+
+function getAvailableAlgorithms() {
+  return Object.keys(algorithmFiles);
+}
+
+module.exports = {
+  getAlgorithm,
+  getAvailableAlgorithms
+};

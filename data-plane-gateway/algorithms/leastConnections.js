@@ -13,3 +13,41 @@
 //
 // Note: Active-request counts must reflect requests currently in progress,
 // not total requests received over time.
+
+
+const activeConnections = {};
+
+function leastConnections(servers) {
+  if (!Array.isArray(servers) || servers.length === 0) {
+    throw new Error("No active backend servers available");
+  }
+
+  let selectedServer = servers[0];
+  let minimumConnections = activeConnections[selectedServer] || 0;
+
+  servers.forEach((server) => {
+    const connections = activeConnections[server] || 0;
+
+    if (connections < minimumConnections) {
+      minimumConnections = connections;
+      selectedServer = server;
+    }
+  });
+
+  return selectedServer;
+}
+
+function incrementConnections(server) {
+  activeConnections[server] = (activeConnections[server] || 0) + 1;
+}
+
+function decrementConnections(server) {
+  if (activeConnections[server] > 0) {
+    activeConnections[server]--;
+  }
+}
+
+leastConnections.incrementConnections = incrementConnections;
+leastConnections.decrementConnections = decrementConnections;
+
+module.exports = leastConnections;

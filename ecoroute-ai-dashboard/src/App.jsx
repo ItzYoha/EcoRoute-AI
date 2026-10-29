@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
@@ -12,10 +11,11 @@ import { dashboardApi } from './services/api'
 import {
   overview as mockOverview,
   instances as mockInstances,
-  telemetry as mockTelemetry,
 } from './data/mockData'
+
 import { CheckCircle2, Circle } from 'lucide-react'
 import TrafficSimulator from './components/TrafficSimulator'
+import AlgorithmSelector from './components/AlgorithmSelector'
 
 export default function App() {
   const [active, setActive] = useState('Overview')
@@ -64,30 +64,31 @@ export default function App() {
 
         const responseHistory = live.response ?? []
 
-        const actualInstances = instanceStatus?.instances?.map((item) => {
-        const serverResponses = responseHistory.filter(
-    (entry) => entry.server?.endsWith(`:${item.host_port}`)
-        )
+        const actualInstances =
+          instanceStatus?.instances?.map((item) => {
+            const serverResponses = responseHistory.filter((entry) =>
+              entry.server?.endsWith(`:${item.host_port}`)
+            )
 
-        const averageResponseTime = serverResponses.length
-          ? serverResponses.reduce(
-              (sum, entry) => sum + entry.responseTime,
-              0
-            ) / serverResponses.length
-          : null
+            const averageResponseTime = serverResponses.length
+              ? serverResponses.reduce(
+                  (sum, entry) => sum + entry.responseTime,
+                  0
+                ) / serverResponses.length
+              : null
 
-          return {
-            id: item.id,
-            port: item.host_port,
-            status: item.status === 'running' ? 'Healthy' : item.status,
-            requests: serverResponses.length,
-            responseTime:
-              averageResponseTime === null
-                ? '—'
-                : averageResponseTime.toFixed(2),
-            rps: '—',
-          }
-        }) ?? mockInstances
+            return {
+              id: item.id,
+              port: item.host_port,
+              status: item.status === 'running' ? 'Healthy' : item.status,
+              requests: serverResponses.length,
+              responseTime:
+                averageResponseTime === null
+                  ? '—'
+                  : averageResponseTime.toFixed(2),
+              rps: '—',
+            }
+          }) ?? mockInstances
 
         const actualTelemetry = responseHistory.map((entry) => {
           const port = entry.server?.split(':').pop()
@@ -108,8 +109,7 @@ export default function App() {
             currentRps: live.currentRps,
             avgResponseTime: live.avgResponseTime,
             predictedRps: prediction?.predicted_rps ?? null,
-            predictionConfidence:
-              prediction?.confidence_proxy ?? null,
+            predictionConfidence: prediction?.confidence_proxy ?? null,
             activeInstances,
             requiredInstances,
           },
@@ -178,7 +178,6 @@ export default function App() {
                 <Circle size={7} fill="currentColor" /> Node.js · FastAPI · Redis
               </span>
             </div>
-
             <div className="metrics-grid">
               <MetricCard
                 type="rps"
@@ -221,13 +220,8 @@ export default function App() {
             </div>
           </section>
 
-          <section
-              id="traffic-simulator"
-              style={{ marginBottom: 28, scrollMarginTop: 24 }}
-            >
-              <TrafficSimulator />
-          </section>
-          
+          <AlgorithmSelector />
+
           <LiveTraffic
             traffic={traffic}
             response={response}
@@ -248,6 +242,8 @@ export default function App() {
           <InstancesPanel instances={instances} />
 
           <TelemetryTable rows={telemetry} />
+
+          <TrafficSimulator />
 
           <footer>
             <span>EcoRoute AI</span>

@@ -1,5 +1,24 @@
 const express = require("express");
 const { createClient } = require("redis");
+const { getAlgorithm } = require("./algorithms");
+
+const leastConnections = require("./algorithms/leastConnections");
+const weightedLeastConnections = require("./algorithms/weightedLeastConnections");
+const powerOfTwoChoices = require("./algorithms/powerOfTwoChoices");
+const leastResponseTime = require("./algorithms/leastResponseTime");
+
+
+const connectionTrackers = {
+  least_connections: leastConnections,
+  weighted_least_connections: weightedLeastConnections,
+  power_of_two: powerOfTwoChoices
+};
+
+const {
+  ALGORITHMS,
+  getSelectedAlgorithm,
+  setSelectedAlgorithm
+} = require("./algorithmRegistry");
 
 const app = express();
 const redisClient = createClient({
@@ -21,10 +40,7 @@ let servers = [
     "http://localhost:5001",
     "http://localhost:5002"
 ];
-
 let currentServer = 0;
-
-// Five-minute RPS history for analytics and forecasting
 const RPS_WINDOW = 5 * 60 * 1000;
 let requestCount = 0;
 let windowStart = Date.now();
@@ -80,7 +96,7 @@ redisClient.on("ready", () => {
 // Allow requests from the Vite frontend
 app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
-    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
     if (req.method === "OPTIONS") {
@@ -100,6 +116,34 @@ app.get("/api/health", (req, res) => {
 
 // Update active backends (called by the control plane)
 app.use(express.json());
+
+app.get("/api/algorithm", (req, res) => {
+  res.json({
+    algorithm: getSelectedAlgorithm(),
+    availableAlgorithms: ALGORITHMS
+  });
+});
+
+app.put("/api/algorithm", (req, res) => {
+  const { algorithm } = req.body;
+
+  try {
+    const selected = setSelectedAlgorithm(algorithm);
+    if (selected === "least_response_time") {
+      leastResponseTime.reset();
+    }
+
+    res.json({
+      status: "updated",
+      algorithm: selected
+    });
+  } catch (error) {
+    res.status(400).json({
+      error: error.message
+    });
+  }
+});
+
 app.put("/api/backends", async (req, res) => {
     const { servers: newServers } = req.body;
 
@@ -118,7 +162,6 @@ app.put("/api/backends", async (req, res) => {
     }
 
     servers = [...newServers];
-    currentServer = currentServer % servers.length;
 
     try {
         await redisClient.set(
@@ -190,6 +233,7 @@ app.get("/api/metrics", async (req, res) => {
     }
 });
 
+
 app.use(async (req, res) => {
     requestCount++;
 
@@ -200,9 +244,15 @@ app.use(async (req, res) => {
 
     const startTime = Date.now();
 
-    const server = servers[currentServer];
+    const algorithmName = getSelectedAlgorithm();
+    const selectServer = getAlgorithm(algorithmName);
+    const server = selectServer(servers);
 
-    currentServer = (currentServer + 1) % servers.length;
+    const tracker = connectionTrackers[algorithmName];
+
+    if (tracker) {
+        tracker.incrementConnections(server);
+    }
 
     console.log("Forwarding request to:", server);
 
@@ -214,6 +264,9 @@ app.use(async (req, res) => {
         const responseTime = Date.now() - startTime;
 
         console.log("Response time:", responseTime, "ms");
+
+        // Keep response-time history for the Least Response Time algorithm.
+        leastResponseTime.recordResponseTime(server, responseTime);
 
         await redisClient.lPush(
             "response_times",
@@ -228,7 +281,16 @@ app.use(async (req, res) => {
 
     } catch (error) {
         console.log("Server unavailable:", server);
-        res.status(500).send("Server unavailable");
+
+        if (!res.headersSent) {
+            res.status(500).send("Server unavailable");
+        }
+
+    } finally {
+        // Decrement even if the backend request fails.
+        if (tracker) {
+            tracker.decrementConnections(server);
+        }
     }
 });
 

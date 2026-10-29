@@ -5,8 +5,35 @@ import { dashboardApi } from '../services/api'
 const panelStyle = {
   background: 'var(--panel, #fff)',
   border: '1px solid var(--border, #e5e7eb)',
-  borderRadius: 12,
+  borderRadius: 11,
   padding: 20,
+}
+
+const fieldStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  fontSize: 12,
+}
+
+const inputStyle = {
+  display: 'block',
+  width: '100%',
+  height: 38,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid var(--border, #d1d5db)',
+  boxSizing: 'border-box',
+}
+
+const buttonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '8px 14px',
+  borderRadius: 8,
+  border: '1px solid var(--border, #d1d5db)',
+  cursor: 'pointer',
 }
 
 export default function TrafficSimulator() {
@@ -15,7 +42,7 @@ export default function TrafficSimulator() {
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [pattern, setPattern] = useState("steady");
+  const [pattern, setPattern] = useState('steady')
 
   async function refreshStatus() {
     try {
@@ -76,30 +103,37 @@ export default function TrafficSimulator() {
   ]
 
   return (
-    <section style={{ display: 'grid', gap: 20 }}>
-      <div>
-        <h2 style={{ marginBottom: 6 }}>Traffic Simulator</h2>
-        <p style={{ color: 'var(--muted, #6b7280)', marginTop: 0 }}>
-          Generate controlled HTTP traffic through your real EcoRoute load balancer.
-        </p>
+    <section
+      id="traffic-simulator"
+      className="simulator-section"
+      style={{ display: 'grid', gap: 16, marginTop: 30, scrollMarginTop: 95 }}
+    >
+      <div className="section-title" style={{ marginBottom: 0 }}>
+        <div>
+          <h2>Traffic Simulator</h2>
+          <p>
+            Generate controlled HTTP traffic through your real EcoRoute load balancer.
+          </p>
+        </div>
       </div>
 
       <div style={panelStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Activity size={22} />
-          <h3 style={{ margin: 0 }}>Load test configuration</h3>
+          <Activity size={20} />
+          <h3 style={{ margin: 0, fontSize: 15 }}>Load test configuration</h3>
         </div>
 
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: 16,
-            marginTop: 20,
+            marginTop: 18,
+            alignItems: 'start',
           }}
         >
-          <label>
-            Target requests per second
+          <label style={fieldStyle}>
+            <span>Target requests per second</span>
             <input
               type="number"
               min="1"
@@ -107,23 +141,20 @@ export default function TrafficSimulator() {
               value={targetRps}
               disabled={running || busy}
               onChange={(e) => setTargetRps(e.target.value)}
-              style={{ display: 'block', width: '100%', marginTop: 8, padding: 10 }}
+              style={inputStyle}
             />
-            <small>Allowed: 1–1000 RPS</small>
+            <small style={{ color: 'var(--muted, #6b7280)', fontSize: 11 }}>
+              Allowed: 1–1000 RPS
+            </small>
           </label>
 
-          <label>
-            Traffic Pattern
+          <label style={fieldStyle}>
+            <span>Traffic Pattern</span>
             <select
               value={pattern}
               disabled={running || busy}
               onChange={(e) => setPattern(e.target.value)}
-              style={{
-                display: 'block',
-                width: '100%',
-                marginTop: 8,
-                padding: 10,
-              }}
+              style={inputStyle}
             >
               <option value="steady">Steady Load</option>
               <option value="ramp_up">Gradual Ramp-Up</option>
@@ -131,63 +162,70 @@ export default function TrafficSimulator() {
               <option value="ramp_up_down">Ramp-Up and Ramp-Down</option>
               <option value="spike_drop">Spike Followed by Drop</option>
             </select>
+            <small style={{ color: 'var(--muted, #6b7280)', fontSize: 11 }}>
+              Load profile shape
+            </small>
           </label>
 
-
-          <label>
-            Duration in seconds
+          <label style={fieldStyle}>
+            <span>Duration in seconds</span>
             <input
-                type="number"
-                min="5"
-                max="3600"
-                value={duration}
-                disabled={running || busy}
-                onChange={(e) => setDuration(e.target.value)}
-                style={{
-                display: 'block',
-                width: '100%',
-                marginTop: 8,
-                padding: 10,
-                }}
+              type="number"
+              min="5"
+              max="3600"
+              value={duration}
+              disabled={running || busy}
+              onChange={(e) => setDuration(e.target.value)}
+              style={inputStyle}
             />
-            <small>Allowed: 5–3600 seconds (up to 1 hour)</small>
-            </label>
+            <small style={{ color: 'var(--muted, #6b7280)', fontSize: 11 }}>
+              Allowed: 5–3600 seconds (up to 1 hour)
+            </small>
+          </label>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap' }}>
           <button
+            style={buttonStyle}
             onClick={startTest}
-            disabled={running || busy || !Number.isInteger(Number(targetRps)) ||
-              Number(targetRps) < 1 || Number(targetRps) > 1000 ||
+            disabled={
+              running ||
+              busy ||
+              !Number.isInteger(Number(targetRps)) ||
+              Number(targetRps) < 1 ||
+              Number(targetRps) > 1000 ||
               !Number.isInteger(Number(duration)) ||
-              Number(duration) < 5 || Number(duration) > 3600}
+              Number(duration) < 5 ||
+              Number(duration) > 3600
+            }
           >
-            <Play size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            {busy && !running ? 'Please wait…' : 'Start simulation'}
+            <Play size={15} />
+            <span>{busy && !running ? 'Please wait…' : 'Start simulation'}</span>
           </button>
 
           <button
+            style={buttonStyle}
             onClick={stopTest}
             disabled={!running || busy}
           >
-            <Square size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            Stop simulation
+            <Square size={15} />
+            <span>Stop simulation</span>
           </button>
 
-          <button onClick={refreshStatus} disabled={busy}>
-            <RefreshCw size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            Refresh status
+          <button style={buttonStyle} onClick={refreshStatus} disabled={busy}>
+            <RefreshCw size={15} />
+            <span>Refresh status</span>
           </button>
         </div>
 
         {error && (
-          <p role="alert" style={{ color: '#dc2626', marginTop: 16 }}>
+          <p role="alert" style={{ color: '#dc2626', marginTop: 14, marginBottom: 0 }}>
             {error}
           </p>
         )}
 
         {status?.error && (
-          <p role="alert" style={{ color: '#dc2626' }}>
+          <p role="alert" style={{ color: '#dc2626', marginTop: 14, marginBottom: 0 }}>
             Simulation error: {status.error}
           </p>
         )}
@@ -197,15 +235,15 @@ export default function TrafficSimulator() {
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-          gap: 14,
+          gap: 13,
         }}
       >
         {statCards.map(([label, value]) => (
           <div key={label} style={panelStyle}>
-            <p style={{ color: 'var(--muted, #6b7280)', marginTop: 0 }}>
+            <p style={{ color: 'var(--muted, #6b7280)', marginTop: 0, marginBottom: 8, fontSize: 12 }}>
               {label}
             </p>
-            <h2 style={{ marginBottom: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 24 }}>
               {typeof value === 'number'
                 ? value.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
@@ -217,19 +255,21 @@ export default function TrafficSimulator() {
       </div>
 
       <div style={panelStyle}>
-        <h3>Simulation status</h3>
-        <p>
+        <h3 style={{ marginTop: 0, marginBottom: 10, fontSize: 15 }}>Simulation status</h3>
+        <p style={{ margin: '6px 0', fontSize: 13 }}>
           Status: <strong>{running ? 'Running' : 'Idle'}</strong>
         </p>
-        <p>Target: {status?.target_rps ?? 0} RPS</p>
-        <p>Configured duration: {status?.duration_seconds ?? 0} seconds</p>
-        <p>
+        <p style={{ margin: '6px 0', fontSize: 13 }}>Target: {status?.target_rps ?? 0} RPS</p>
+        <p style={{ margin: '6px 0', fontSize: 13 }}>
+          Configured duration: {status?.duration_seconds ?? 0} seconds
+        </p>
+        <p style={{ margin: '6px 0', fontSize: 13 }}>
           Started at:{' '}
           {status?.started_at
             ? new Date(status.started_at).toLocaleTimeString()
             : '—'}
         </p>
-        <p style={{ color: 'var(--muted, #6b7280)' }}>
+        <p style={{ color: 'var(--muted, #6b7280)', marginBottom: 0, marginTop: 10, fontSize: 12, lineHeight: 1.5 }}>
           Achieved RPS is calculated from completed requests, so it can be
           lower than the selected target. This panel reports the traffic
           generator's measurements; check the main dashboard for gateway

@@ -11,3 +11,19 @@
 //    for all load-balancing algorithms.
 //
 // Note: Round Robin is the default algorithm in EcoRoute AI.
+
+
+let currentIndex = 0;
+
+function roundRobin(servers) {
+  if (!Array.isArray(servers) || servers.length === 0) {
+    throw new Error("No active backend servers available");
+  }
+
+  const server = servers[currentIndex % servers.length];
+  currentIndex = (currentIndex + 1) % servers.length;
+
+  return server;
+}
+
+module.exports = roundRobin;
