@@ -1,255 +1,408 @@
 # EcoRoute AI — User Manual and Installation Guide
 
-This manual explains how to install, configure, start, verify, benchmark, and stop the **EcoRoute AI** system from scratch on **Windows 10/11 using PowerShell**. Every command, port, and file path below has been verified directly against the repository source code.
+## 1. Prerequisites
 
----
+Install the following software before running EcoRoute AI.
 
-## 1. Required Software & Prerequisites
+| Software | Version | Purpose | Verification |
+|---|---|---|---|
+| Git | Current stable version | Clone the repository | `git --version` |
+| Node.js and npm | Node.js 20 or newer | Gateway and React dashboard | `node --version`, `npm --version` |
+| Python | Python 3.11 or newer, compatible with `requirements.txt` | Control plane, collector, model training and benchmark | `python --version` or `python3 --version` |
+| Docker | Current supported version | Redis and backend containers | `docker --version`, `docker info` |
+| R | R 4.x | R/Shiny analytics dashboard | `R --version` |
+| Web browser | Current version | Access the dashboards | — |
 
-Before running EcoRoute AI, ensure the following software is installed on your Windows machine:
+The R/Shiny dashboard is optional. Docker is required for Redis and Docker-managed backend autoscaling.
 
-| Software | Version Used / Tested | Purpose | Verification Command |
-| :--- | :--- | :--- | :--- |
-| **Node.js & npm** | Node.js v20+ (v24.22.0 present) | Runs the Data Plane Load Balancer (`:8000`), Backend Servers (`:5001`, `:5002`), and React Dashboard (`:5173`) | `node --version` / `npm --version` |
-| **Python** | Python 3.11+ (3.13.14 in `.venv`) | Runs the FastAPI Control Plane (`:5000`), Redis Collector, ML Trainer, and Benchmark Runner | `python --version` |
-| **Docker Desktop** | Docker Engine 24+ | Runs Redis (`:6379`) and dynamically scaled backend containers (`ecoroute-backend-1..10`) | `docker --version` / `docker ps` |
-| **R & Rscript** | R 4.x (`R-4.5.2` installed) | Runs the 3-tab R/Shiny Analytics Dashboard (`:3838`) | `& "C:\Program Files\R\R-4.5.2\bin\Rscript.exe" --version` |
+## 2. Repository Setup
 
----
+Clone the repository:
 
-## 2. Port Map & Service Overview
+```bash
+git clone https://github.com/ItzYoha/EcoRoute-AI.git
+cd EcoRoute-AI
+```
 
-| Port | Service | Source File | Required By |
-| :--- | :--- | :--- | :--- |
-| `6379` | Redis Server | External / Docker `redis:alpine` | `load_balancer.js`, `collect_live_data.py`, `run_benchmark.py` |
-| `5001` | Backend Worker 1 (Baseline) | `data-plane-gateway/server.js` (or `ecoroute-backend-1`) | `load_balancer.js`, `main.py`, `run_benchmark.py` |
-| `5002` | Backend Worker 2 (Baseline) | `data-plane-gateway/server2.js` (or `ecoroute-backend-2`) | `load_balancer.js`, `main.py`, `run_benchmark.py` |
-| `5003–5010` | Scaled Backend Workers 3–10 | Docker containers `ecoroute-backend-3..10` | Created/removed dynamically by `control-plane-brain/main.py` |
-| `8000` | Data Plane Load Balancer | `data-plane-gateway/load_balancer.js` | Clients, React UI, `main.py`, `run_benchmark.py` |
-| `5000` | Control Plane FastAPI Brain | `control-plane-brain/main.py` | React UI (`api.js`), `run_benchmark.py`, R/Shiny (`app.R`) |
-| `5173` | React + Vite Web Dashboard | `ecoroute-ai-dashboard/src/main.jsx` | Browser UI (CORS whitelisted in `:8000` and `:5000`) |
-| `3838` | R / Shiny Analytics App | `R-Analytics/app.R` | Browser UI for statistical & benchmark evaluation |
+If the project was downloaded as a ZIP file, extract it and open a terminal in the extracted `EcoRoute-AI` directory.
 
-> **Important Note on Port 5000:** Uvicorn defaults to port `8000` if `--port` is omitted, which collides with `load_balancer.js` on port `8000`. Always start `main.py` with `--port 5000` because `ecoroute-ai-dashboard/src/services/api.js` hardcodes `CONTROL_PLANE_URL = "http://localhost:5000"`.
+The project root contains the `data-plane-gateway`, `control-plane-brain`, `ecoroute-ai-dashboard`, and `R-Analytics` directories.
 
----
+## 3. Install Dependencies
 
-## 3. Repository Setup & Dependency Installation
+### 3.1 Python Dependencies
 
-### 3.1 Python Virtual Environment & Dependencies (`control-plane-brain`)
-Open PowerShell and run:
+Open a terminal in the project root and enter the control-plane directory:
+
+```bash
+cd control-plane-brain
+```
+
+Create a virtual environment.
+
+**Windows PowerShell**
 ```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\control-plane-brain
+python -m venv .venv
+```
 
-# Create a virtual environment if .venv does not exist
-if (-not (Test-Path .\.venv)) {
-    python -m venv .venv
-}
+**macOS / Linux**
+```bash
+python3 -m venv .venv
+```
 
-# Activate the virtual environment
+Activate the environment.
+
+**Windows PowerShell**
+```powershell
 .\.venv\Scripts\Activate.ps1
-
-# Install locked Python packages (FastAPI, Uvicorn, Scikit-Learn, Pandas, Redis, Docker SDK)
-pip install -r requirements.txt
 ```
-*(If PowerShell blocks `.Activate.ps1`, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first, or invoke `.\.venv\Scripts\python.exe` directly.)*
 
-### 3.2 Node.js Dependencies (`data-plane-gateway` & `ecoroute-ai-dashboard`)
-```powershell
-# Install Data Plane Gateway dependencies (express, redis)
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\data-plane-gateway
+**macOS / Linux**
+```bash
+source .venv/bin/activate
+```
+
+Install the Python packages:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+If the Python command is not available, use the Python command provided by your installation. On Windows, `py` may be used instead of `python`.
+
+Return to the project root:
+
+```bash
+cd ..
+```
+
+### 3.2 Node.js Dependencies
+
+Install the gateway dependencies:
+
+```bash
+cd data-plane-gateway
 npm install
+cd ..
+```
 
-# Install React Dashboard dependencies (react, vite, recharts, lucide-react)
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\ecoroute-ai-dashboard
+Install the dashboard dependencies:
+
+```bash
+cd ecoroute-ai-dashboard
 npm install
+cd ..
 ```
 
-### 3.3 R Packages (`R-Analytics`)
-```powershell
-& "C:\Program Files\R\R-4.5.2\bin\Rscript.exe" -e "install.packages(c('shiny', 'ggplot2', 'readr'), repos='https://cloud.r-project.org')"
+### 3.3 R/Shiny Dependencies
+
+Install R 4.x and ensure `Rscript` is available in the terminal. Then install the packages:
+
+```bash
+Rscript -e "install.packages(c('shiny', 'ggplot2', 'readr'), repos='https://cloud.r-project.org')"
 ```
 
----
+On Windows, if `Rscript` is not recognized, add the R `bin` directory to PATH or run `Rscript.exe` from its installation directory.
 
-## 4. Starting the System in the Correct Order
+## 4. Port Map
 
-Always start the services in the order below so downstream services can connect immediately.
+| Port | Component | Purpose |
+|---:|---|---|
+| 6379 | Redis | Stores request and latency telemetry |
+| 5001–5002 | Baseline backend workers | Initial backend instances |
+| 5003–5010 | Additional backend workers | Additional Docker-managed capacity |
+| 8000 | Node.js/Express gateway | Routes requests and exposes gateway APIs |
+| 5000 | FastAPI control plane | Forecasting, instance status, traffic simulation and autoscaling |
+| 5173 | React/Vite dashboard | Web interface |
+| 3838 | R/Shiny dashboard | Analytics interface |
 
-### Step 1: Start Redis (Port `6379`)
-Ensure Docker Desktop is running, then start a Redis container:
-```powershell
-docker start ecoroute-redis 2>$null
-if ($LASTEXITCODE -ne 0) {
-    docker run -d --name ecoroute-redis -p 6379:6379 redis:alpine
-}
+The gateway uses port `8000`. The control plane must use port `5000` to match the dashboard configuration.
+
+## 5. Start the System
+
+Run each long-running service in a separate terminal. Commands use paths relative to the project root.
+
+### Step 1 — Start Docker
+
+Start Docker Desktop on Windows or macOS, or start Docker Engine on Linux. Verify that it is running:
+
+```bash
+docker info
 ```
 
-### Step 2: Start Baseline Backend Instances (Ports `5001` and `5002`)
-You have two options depending on whether you are using Docker autoscaling:
+### Step 2 — Start Redis
 
-#### Option A: Docker Containers (Recommended — Required for `main.py` Docker Autoscaling)
-`control-plane-brain/main.py` expects an image named `ecoroute-backend:latest` and two baseline containers named `ecoroute-backend-1` and `ecoroute-backend-2`:
-```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\data-plane-gateway
+On the first run, create the Redis container:
+
+```bash
+docker run -d --name ecoroute-redis -p 6379:6379 redis:alpine
+```
+
+For later runs, start the existing container:
+
+```bash
+docker start ecoroute-redis
+```
+
+Check container status with:
+
+```bash
+docker ps -a
+```
+
+### Step 3 — Build and Start Backend Containers
+
+From the project root:
+
+```bash
+cd data-plane-gateway
 docker build -t ecoroute-backend:latest .
+```
 
-docker rm -f ecoroute-backend-1 ecoroute-backend-2 2>$null
+Create the two baseline backend containers:
+
+```bash
 docker run -d --name ecoroute-backend-1 -p 5001:5001 --restart unless-stopped ecoroute-backend:latest
 docker run -d --name ecoroute-backend-2 -p 5002:5001 --restart unless-stopped ecoroute-backend:latest
 ```
 
-#### Option B: Local Node.js Processes (Lightweight Mode without Docker Containers)
-If Docker Desktop is unavailable for backend containers, you can run the two worker scripts directly in two terminals (note that `/instances` and `autoscaling_loop` in `main.py` will not manage non-Docker processes):
-```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\data-plane-gateway
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node server.js"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node server2.js"
+If containers with these names already exist, inspect them with `docker ps -a`. Remove an existing container before recreating it:
+
+```bash
+docker rm -f ecoroute-backend-1 ecoroute-backend-2
 ```
 
-### Step 3: Start the Data Plane Load Balancer (Port `8000`)
-In a new PowerShell window:
-```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\data-plane-gateway
+Return to the project root:
+
+```bash
+cd ..
+```
+
+Docker-managed baseline containers are required for the Docker autoscaling controller. Running the backend scripts as local Node.js processes supports basic routing tests, but those processes are not managed by the Docker autoscaler.
+
+### Step 4 — Start the Gateway
+
+In a new terminal:
+
+```bash
+cd data-plane-gateway
 node load_balancer.js
 ```
-Expected console output:
-```text
-Load Balancer running on port 8000
-Connected to Redis
-Starting 5-minute RPS timer
-```
 
-### Step 4: Start the Live RPS Collector (`collect_live_data.py`)
-In a new PowerShell window:
+The gateway listens on port `8000` and connects to Redis.
+
+### Step 5 — Start the Live RPS Collector
+
+In a new terminal:
+
+**Windows PowerShell**
 ```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\control-plane-brain
+cd control-plane-brain
 .\.venv\Scripts\python.exe collect_live_data.py
 ```
-Expected console output:
-```text
-Connected to Redis: True
-CSV destination: ...\control-plane-brain\data\gold\live_rps_with_intervals.csv
-Live RPS collector started. Press Ctrl+C to stop.
+
+**macOS / Linux**
+```bash
+cd control-plane-brain
+.venv/bin/python collect_live_data.py
 ```
 
-### Step 5: Start the Control Plane FastAPI Server & Autoscaler (Port `5000`)
-In a new PowerShell window:
+Keep the collector running while gathering telemetry.
+
+### Step 6 — Start the Control Plane
+
+In a new terminal:
+
+**Windows PowerShell**
 ```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\control-plane-brain
+cd control-plane-brain
 .\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 5000
 ```
-Expected console output:
-```text
-API CSV PATH: ...\control-plane-brain\data\gold\live_rps_with_intervals.csv
-CSV EXISTS: True
-Scheduled autoscaling started.
-Check interval: 60s; cooldown: 300s
-Uvicorn running on http://0.0.0.0:5000
+
+**macOS / Linux**
+```bash
+cd control-plane-brain
+.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 5000
 ```
 
-### Step 6: Start the React Operational Dashboard (Port `5173`)
-In a new PowerShell window:
-```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\ecoroute-ai-dashboard
+The control plane serves the API and runs the autoscaling loop.
+
+### Step 7 — Start the React Dashboard
+
+In a new terminal:
+
+```bash
+cd ecoroute-ai-dashboard
 npm run dev
 ```
-Open `http://localhost:5173` in your browser.
 
-### Step 7: Start the R/Shiny Analytics Dashboard (Port `3838`)
-In a new PowerShell window:
-```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\R-Analytics
-& "C:\Program Files\R\R-4.5.2\bin\Rscript.exe" -e "shiny::runApp('app.R', port=3838, launch.browser=TRUE)"
-```
-Open `http://127.0.0.1:3838` in your browser.
+Open the URL printed by Vite. The default address is `http://localhost:5173`.
 
----
+### Step 8 — Start the R/Shiny Dashboard (Optional)
 
-## 5. How to Verify Each Service Is Running
+In a new terminal:
 
-Run these commands in PowerShell to verify every layer:
-
-```powershell
-# 1. Verify Redis connectivity
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\control-plane-brain
-.\.venv\Scripts\python.exe redis_test.py
-
-# 2. Verify Backend 1 (5001) and Backend 2 (5002)
-Invoke-RestMethod http://localhost:5001/
-Invoke-RestMethod http://localhost:5002/
-
-# 3. Verify Data Plane Gateway health, active algorithm, and metrics (8000)
-Invoke-RestMethod http://localhost:8000/api/health
-Invoke-RestMethod http://localhost:8000/api/algorithm
-Invoke-RestMethod http://localhost:8000/api/metrics
-
-# 4. Verify Control Plane health, Docker instances, and ML prediction (5000)
-Invoke-RestMethod http://localhost:5000/health
-Invoke-RestMethod http://localhost:5000/instances
-Invoke-RestMethod http://localhost:5000/predict
+```bash
+cd R-Analytics
+Rscript -e "shiny::runApp('app.R', host='127.0.0.1', port=3838, launch.browser=TRUE)"
 ```
 
----
+Open `http://127.0.0.1:3838` if the browser does not open automatically.
 
-## 6. How to Generate Traffic & Run the 6-Algorithm Benchmark
+## 6. Verify the Services
 
-### 6.1 Interactive Traffic Simulator (UI or API)
-- **Via React Dashboard**: Open `http://localhost:5173`, scroll to **Traffic Simulator**, set **Target requests per second** (`1–1000`), choose a **Traffic Pattern** (`Steady Load`, `Gradual Ramp-Up`, `Sudden Spike`, `Ramp-Up and Ramp-Down`, or `Spike Followed by Drop`), set **Duration in seconds** (`5–3600`), and click **Start simulation**.
-- **Via PowerShell API Call**:
-  ```powershell
-  Invoke-RestMethod -Uri "http://localhost:5000/demo/start" -Method POST -ContentType "application/json" -Body '{"target_rps": 25, "duration_seconds": 30, "pattern": "steady"}'
-  Invoke-RestMethod -Uri "http://localhost:5000/demo/status" -Method GET
-  ```
+Run the following checks after starting the services.
 
-### 6.2 Running the Fixed-Capacity 6-Algorithm Benchmark
-To evaluate all six load-balancing algorithms (`round_robin`, `weighted_round_robin`, `least_connections`, `weighted_least_connections`, `least_response_time`, `power_of_two`) under identical two-backend conditions:
+### 6.1 Redis and Docker
 
+```bash
+docker ps
+docker exec ecoroute-redis redis-cli PING
+```
+
+Redis should return `PONG`.
+
+### 6.2 Backend Workers
+
+```bash
+curl http://localhost:5001/
+curl http://localhost:5002/
+```
+
+### 6.3 Gateway
+
+```bash
+curl http://localhost:8000/api/health
+curl http://localhost:8000/api/algorithm
+curl http://localhost:8000/api/metrics
+```
+
+### 6.4 Control Plane
+
+```bash
+curl http://localhost:5000/health
+curl http://localhost:5000/instances
+```
+
+Test prediction after sufficient telemetry history has accumulated:
+
+```bash
+curl http://localhost:5000/predict
+```
+
+The prediction endpoint requires at least 13 consecutive five-minute samples. An HTTP 422 response can occur until enough valid history is available.
+
+## 7. Generate Traffic
+
+### 7.1 Through the Dashboard
+
+Open the React dashboard at `http://localhost:5173`. Use the Traffic Simulator to select a target request rate, duration, and traffic pattern, then start the simulation.
+
+### 7.2 Through the API
+
+Start a steady traffic simulation:
+
+```bash
+curl -X POST http://localhost:5000/demo/start \
+  -H "Content-Type: application/json" \
+  -d '{"target_rps":25,"duration_seconds":30,"pattern":"steady"}'
+```
+
+Check the simulation status:
+
+```bash
+curl http://localhost:5000/demo/status
+```
+
+Stop the simulation:
+
+```bash
+curl -X POST http://localhost:5000/demo/stop
+```
+
+On Windows PowerShell, use `curl.exe` if `curl` is interpreted as a PowerShell alias.
+
+## 8. Run the Load-Balancing Benchmark
+
+Ensure Redis, the gateway, the control plane, and both baseline backend containers are running.
+
+From the `control-plane-brain` directory, run:
+
+**Windows PowerShell**
 ```powershell
-Set-Location C:\Users\yohar\OneDrive\Desktop\EcoRouteAI\EcoRoute-AI\control-plane-brain
 .\.venv\Scripts\python.exe run_benchmark.py --rps 25 --duration 30
 ```
 
-#### What `run_benchmark.py` Does:
-1. Checks that Redis (`:6379`), the Gateway (`:8000/api/health`), and the Control Plane (`:5000/health`) are healthy.
-2. Before each algorithm run, registers `["http://localhost:5001", "http://localhost:5002"]` via `PUT /api/backends` and verifies that exactly 2 backends are reachable and active (and `:5003` is not running).
-3. Switches the algorithm via `PUT /api/algorithm` and confirms it took effect via `GET /api/algorithm`.
-4. Snapshots Redis `LLEN response_times` and `window_start_utc`, runs a 30-second `steady` workload via `POST /demo/start`, and waits for completion.
-5. Verifies that 2 backends are still active after the run.
-6. Extracts only the Redis `response_times` entries recorded during that run's window and writes:
-   - `control-plane-brain/data/gold/benchmark_summary.csv` (1 summary row per algorithm)
-   - `control-plane-brain/data/gold/benchmark_requests.csv` (individual request latencies and backend attribution)
+**macOS / Linux**
+```bash
+.venv/bin/python run_benchmark.py --rps 25 --duration 30
+```
 
----
+The benchmark evaluates the six configured load-balancing algorithms and writes result files under `control-plane-brain/data/gold/` when the run completes successfully.
 
-## 7. How to Stop the Services Safely
+## 9. Train the Model
 
-1. **Stop Active Traffic Simulation (if running)**:
-   ```powershell
-   Invoke-RestMethod -Uri "http://localhost:5000/demo/stop" -Method POST
-   ```
-2. **Stop Terminal Services**: Press `Ctrl + C` in the PowerShell terminals running:
-   - R/Shiny (`app.R`)
-   - React Dashboard (`npm run dev`)
-   - Control Plane FastAPI (`uvicorn main:app`) — triggers the `@app.on_event("shutdown")` handler to cancel `autoscaling_loop` cleanly
-   - Live RPS Collector (`collect_live_data.py`)
-   - Data Plane Load Balancer (`node load_balancer.js`)
-3. **Stop Docker Containers**:
-   ```powershell
-   docker stop ecoroute-backend-1 ecoroute-backend-2 ecoroute-redis
-   ```
+If the model files required by the control plane are missing, run training from `control-plane-brain`.
 
----
+**Windows PowerShell**
+```powershell
+.\.venv\Scripts\python.exe train_model.py
+```
 
-## 8. Troubleshooting Common Issues
+**macOS / Linux**
+```bash
+.venv/bin/python train_model.py
+```
 
-| Problem / Error Message | Root Cause | Solution |
-| :--- | :--- | :--- |
-| **`Error: listen EADDRINUSE: address already in use :::8000`** | Another process (or `uvicorn` started without `--port 5000`) is already using port `8000`. | Find the PID with `Get-NetTCPConnection -LocalPort 8000` and stop it (`Stop-Process -Id <PID> -Force`), and ensure Uvicorn runs on `--port 5000`. |
-| **`Redis connection error` / `Could not connect to Redis`** | Redis server is not running on `localhost:6379`. | Run `docker ps` to check if `ecoroute-redis` is up, or start it with `docker start ecoroute-redis`. |
-| **`HTTP 422` on `GET /predict`: `Need 13 consecutive samples spaced 5 minutes apart. Latest continuous sequence has X.`** | `main.py` checks that the latest 13 rows in `live_rps_with_intervals.csv` have consecutive timestamps within `300s ± 30s`. If `load_balancer.js` and `collect_live_data.py` were stopped and restarted after a time gap, a new sequence starts at length `1`. | Keep `load_balancer.js` and `collect_live_data.py` running continuously for 60 minutes (13 × 5-minute intervals) so a complete sequence accumulates, or inspect the existing valid sequence at the tail of `live_rps_with_intervals.csv`. |
-| **`HTTP 404` on `GET /predict`: `Live RPS CSV not found`** | `control-plane-brain/data/gold/live_rps_with_intervals.csv` is missing. | Start `load_balancer.js` and `collect_live_data.py` to populate `live_rps_with_intervals.csv`. |
-| **`FileNotFoundError: models/forecasting_model.joblib`** | Model artifacts were deleted or not generated. | Run `.\.venv\Scripts\python.exe train_model.py` inside `control-plane-brain/`. |
-| **`docker.errors.DockerException: Error while fetching server API version`** | Docker Desktop is not running on Windows when `main.py` starts (`docker.from_env()`). | Launch **Docker Desktop** and wait until the engine status shows running before starting `uvicorn main:app`. |
-| **`RuntimeError: Both baseline containers must be running` in AutoScaler** | `reconcile_instances()` in `main.py` requires Docker containers `ecoroute-backend-1` and `ecoroute-backend-2` to be running. | Start both containers using the `docker run` commands in Section 4, Step 2 (Option A). |
-| **`Rscript : The term 'Rscript' is not recognized`** | R's `bin` directory is not on your Windows `PATH`. | Invoke Rscript using its full path: `& "C:\Program Files\R\R-4.5.2\bin\Rscript.exe"`. |
+Training requires the project's training data to be available.
+
+## 10. Stop the System
+
+Stop an active traffic simulation:
+
+```bash
+curl -X POST http://localhost:5000/demo/stop
+```
+
+Press **Ctrl+C** in the terminals running the R/Shiny app, React dashboard, control plane, collector, and gateway.
+
+Stop the Docker containers:
+
+```bash
+docker stop ecoroute-backend-1 ecoroute-backend-2 ecoroute-redis
+```
+
+If autoscaling created additional `ecoroute-backend-*` containers, check `docker ps` and stop any remaining project containers when finished.
+
+## 11. Troubleshooting
+
+| Problem | Possible cause | Resolution |
+|---|---|---|
+| Port already in use | Another process is using the port | Stop the conflicting process or update the application configuration and dependent URLs consistently |
+| Redis connection refused | Redis is stopped or Docker is unavailable | Check `docker info` and `docker ps -a`; start `ecoroute-redis` |
+| Docker API connection error | Docker Engine is not running or access is denied | Start Docker Engine and verify with `docker info` |
+| HTTP 422 from `/predict` | Not enough consecutive five-minute samples | Keep the gateway and collector running until sufficient valid history is available |
+| HTTP 404 from `/predict` because the CSV is missing | Live telemetry file has not been created | Start the gateway and collector and check the configured CSV path |
+| Model file not found | Model artifacts are missing | Run `train_model.py` and confirm training data is available |
+| Baseline container missing | Container was not created or is stopped | Check `docker ps -a`, build the image, and start both baseline containers |
+| Dashboard cannot connect to an API | Service is stopped, port is incorrect, or CORS configuration does not match | Check that the gateway uses port 8000 and the control plane uses port 5000 |
+| `Rscript` is not recognized | R is not installed or its executable is not on PATH | Install R and add its `bin` directory to PATH, or use the full path to `Rscript` |
+| Python package installation fails | Unsupported Python version, network issue, or package build failure | Check the Python version and review the complete installation error |
+
+## 12. Quick Startup Checklist
+
+- [ ] Git, Node.js/npm, Python, and Docker are installed.
+- [ ] Repository is cloned or extracted.
+- [ ] Python virtual environment is created and dependencies are installed.
+- [ ] Gateway and dashboard Node.js dependencies are installed.
+- [ ] Docker Engine is running.
+- [ ] Redis is running on port 6379.
+- [ ] Backend image is built and baseline containers are running on ports 5001 and 5002.
+- [ ] Gateway is running on port 8000.
+- [ ] Live collector and control plane are running.
+- [ ] React dashboard is accessible at the Vite URL.
+- [ ] R/Shiny dashboard is running if required.
+- [ ] Prediction is tested after sufficient telemetry history has accumulated.
+
+**Repository:** https://github.com/ItzYoha/EcoRoute-AI
