@@ -98,8 +98,7 @@ EcoRoute-AI/
 ├── README.md                                  # Root project documentation
 ├── .gitignore
 ├── docs/
-│   ├── USER_MANUAL_AND_INSTALLATION_GUIDE.md  # Step-by-step setup, execution & troubleshooting guide
-│   └── ECOROUTE_AI_STUDY_NOTES.md             # Viva study notes, math walkthroughs & Q&A
+│   └── USER_MANUAL_AND_INSTALLATION_GUIDE.md  # Step-by-step setup, execution & troubleshooting guide  
 ├── data-plane-gateway/                        # Node.js Data Plane & Backend Workers
 │   ├── Dockerfile                             # Builds ecoroute-backend:latest (Node 20 Alpine, port 5001)
 │   ├── package.json / package-lock.json
